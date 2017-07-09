@@ -1,0 +1,14 @@
+{
+    "name": "miraframework/render",
+    "description": "A Service Provider to add Render class to Mira Framework",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Joseph Mancuso",
+            "email": "jmancuso.mil@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {}
+}
