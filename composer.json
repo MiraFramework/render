@@ -11,6 +11,6 @@
     ],
     "minimum-stability": "stable",
     "require": {
-        "miraframework/appmodels": "1.*"
+        "miraframework/appmodels": "0.1.*"
     }
 }
