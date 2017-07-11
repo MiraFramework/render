@@ -4,7 +4,7 @@
  * Render also handles template tags and the templating engine.
  *
  * To extend Render capabilities, just make a new Service Provider
- * copy over the view(), templateEngine(), and templateTags() methods.
+ * copy over the view(), templateEngine(), and getTemplateTags() methods.
  * Then add that new Service Provider in the config file.
  *
  * @package Mira Core
@@ -15,11 +15,6 @@ namespace Mira;
 
 class Render
 {
-    private function __construct()
-    {
-        //
-    }
-
     /**
      * Check if multi-tenancy => true in the project config file
      *
@@ -30,6 +25,7 @@ class Render
     {
         // Multi-tenancy
         $subdomain = self::getSubdomain();
+        $host = explode('.', $_SERVER['HTTP_HOST']);
 
         $multi_tenancy = Project::config('multi-tenancy');
         if (count($host) >= 3 && $subdomain != 'www') {
@@ -50,13 +46,9 @@ class Render
     {
         $app_name = explode('.', $template);
         
-        if (count($app_name)) {
-            $name = $app_name[0];
-            if (file_exists($_SERVER['DOCUMENT_ROOT']."/application/app/$name/config.php")) {
-                return $config = require $_SERVER['DOCUMENT_ROOT']."/application/app/$name/config.php";
-            } else {
-                return $config = require $_SERVER['DOCUMENT_ROOT'].'/config/config.php';
-            }
+        $name = $app_name[0];
+        if (file_exists($_SERVER['DOCUMENT_ROOT']."/application/app/$name/config.php")) {
+            return $config = require $_SERVER['DOCUMENT_ROOT']."/application/app/$name/config.php";
         } else {
             return $config = require $_SERVER['DOCUMENT_ROOT'].'/config/config.php';
         }
@@ -67,6 +59,7 @@ class Render
      *
      * @return subdomain - first section of url
      * @see multiTenancy()
+     * @test
      **/
 
     public static function getSubdomain()
@@ -84,7 +77,8 @@ class Render
      * @param $replace - a replacement for the output
      * @param $output - take input from file_get_contents() @see view()
      * @return $output - a preg_replace template tag
-     * @see templateTags()
+     * @see getTemplateTags()
+     * @test
      **/
 
     public static function register($pattern, $replace, $output)
@@ -114,12 +108,11 @@ class Render
         if (count($template) > 1) {
             self::templateEngine($template, $variables);
         } else {
-            // no template
-            echo "no template";
+            return false;
         }
 
         self::getFooter($config);
-        die();
+        return true;
     }
 
     /**
@@ -131,6 +124,7 @@ class Render
     public static function redirect($url)
     {
         Header("Location: $url");
+        return true;
     }
 
     /**
@@ -141,12 +135,23 @@ class Render
      * @param $variables (array) - array of variables to pass to template
      * @return template file
      * @see templateEngine()
+     * @test
      **/
 
-    public static function getTemplate($app, $app_template, $variables)
+    public static function getTemplate($app, $app_template, $variables = [])
     {
         extract($variables);
-        include $_SERVER['DOCUMENT_ROOT']."/application/app/$app/templates/$app_template.php";
+
+        if (file_exists($_SERVER['DOCUMENT_ROOT']."/application/app/$app/templates/$app_template.engine.php")) {
+            include $_SERVER['DOCUMENT_ROOT']."/application/app/$app/templates/$app_template.engine.php";
+            return true;
+        } else {
+            if (file_exists($_SERVER['DOCUMENT_ROOT']."/application/app/$app/templates/$app_template.php")) {
+                include $_SERVER['DOCUMENT_ROOT']."/application/app/$app/templates/$app_template.php";
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -154,13 +159,13 @@ class Render
      * with valid PHP code
      *
      * 1. Gets the file_get_contents of the template
-     * 2. Then runs templateTags() which preg_replaces the output
+     * 2. Then runs getTemplateTags() which preg_replaces the output
      * 3. Then returns the eval of the replaced template syntax
      *
      * @param $template - takes an exploded() template
      * @param $variables (array) - array of variables to pass to view
      * @return php eval code for Comet template syntax engine
-     * @see templateTags()
+     * @see getTemplateTags()
      **/
 
     public static function templateEngine($template, $variables)
@@ -175,7 +180,7 @@ class Render
         if (file_exists($_SERVER['DOCUMENT_ROOT']."/application/app/$app/templates/$app_template.engine.php")) {
             $output = file_get_contents($_SERVER['DOCUMENT_ROOT']."/application/app/$app/templates/$app_template.engine.php");
             
-            $output = self::templateTags($output);
+            $output = self::getTemplateTags($output);
             
             echo eval(' ?>'.$output. ' ');
         } else {
@@ -196,85 +201,121 @@ class Render
      * @see view()
      **/
 
-    public static function templateTags($output)
+    public static function getTemplateTags($output)
     {
         // register template tags
+        $output = static::compileMustache($output);
+
+
+        $output = static::compileIfStatements($output);
+
+        $output = static::compileComments($output);
+
+        $output = static::compileUnless($output);
+
+        $output = static::compileUse($output);
+
+        return $output = self::register(self::matcher('extends'), '$1<?php Mira\\Render::templateExtends($2) ?>', $output);
+    }
+
+    public static function compileMustache($output)
+    {
         $output = self::register("/{{/", '<?=', $output);
-        $output = self::register("/}}/", '?>', $output);
+        return $output = self::register("/}}/", '?>', $output);
+    }
+
+    public static function compileIfStatements($output)
+    {
         $output = self::register(self::matcher("(if|elseif|foreach|for|while)"), '$1<?php $2$3: ?>', $output);
 
         $output = self::register("/(\s*)@(else)(\s*)/", '$1<?php $2: ?>$3', $output);
 
-        $output = self::register('/(\s*)@(endif|endforeach|endfor|endwhile)(\s*)/', '$1<?php $2; ?>$3', $output);
+        return $output = self::register('/(\s*)@(endif|endforeach|endfor|endwhile)(\s*)/', '$1<?php $2; ?>$3', $output);
+    }
 
+    public static function compileComments($output)
+    {
         $output = self::register("/(\s*)@(comment)/", '$1<?php if (0): ?>', $output);
 
-        $output = self::register("/(\s*)@(endcomment)/", "<?php endif; ?>", $output);
+        return $output = self::register("/(\s*)@(endcomment)/", "<?php endif; ?>", $output);
+    }
 
+    public static function compileUnless($output)
+    {
         $output = self::register('/(\s*)@unless(\s*\(.*\))/', "$1<?php if ( ! ($2)): ?>", $output);
 
-        $output = self::register('/(\s*)@(endunless)(\s*)/', '<?php endif; ?>', $output);
+        return $output = self::register('/(\s*)@(endunless)(\s*)/', '<?php endif; ?>', $output);
+    }
 
-        $output = self::register("/(\s*)@(use)(\s.*)/", "<?php use $3; ?>", $output);
-
-
-        $output = self::register(self::matcher('iteration'), "1", $output);
-
-        return $output = self::register(self::matcher('extends'), '$1<?php Mira\\Render::templateExtends($2) ?>', $output);
+    public static function compileUse($output)
+    {
+        return $output = self::register("/(\s*)@(use)(\s.*)/", "<?php use $3; ?>", $output);
     }
 
     /**
      * Returns a pattern that matches expressions such as @tag('')
      *
-     * @param $tag - the tag name to match such as extends, 
+     * @param $tag - the tag name to match such as extends,
      * @return regex pattern
-     * @see templateTags()
+     * @see getTemplateTags()
+     * @test
      **/
 
     public static function matcher($tag)
     {
         return '/(\s*)@'.$tag.'(\s*\(.*\))/';
     }
+
+    /**
+     * undocumented function
+     *
+     * @return void
+     * @test
+     **/
     
     public function getHeader($config)
     {
-        if ($config['header']) {
-            $header = explode('.', $config['header']);
+        $header = explode('.', $config['header']);
 
-            if (count($header) > 1) {
-                if (self::multiTenancy()) {
-                    $app = self::getSubdomain();
-                } else {
-                    $app = $header[0];
-                }
-                
-                $app_template = $header[1];
-
-                include_once $_SERVER['DOCUMENT_ROOT']."/application/app/$app/templates/$app_template.php";
+        if (count($header) > 1) {
+            if (self::multiTenancy()) {
+                $app = self::getSubdomain();
             } else {
-                // no template
-                echo "nothing";
+                $app = $header[0];
             }
+            $app_template = $header[1];
+
+            static::getTemplate($app, $app_template);
+
+            return true;
+        } else {
+            return false;
         }
     }
+
+    /**
+     * undocumented function
+     *
+     * @return void
+     * @test
+     **/
     
     public function getFooter($config)
     {
-        if ($config['footer']) {
-            $footer = explode('.', $config['footer']);
-            
-            if (count($footer) > 1) {
-                if ($multi_tenancy && $multi_check) {
-                    $app = $subdomain;
-                } else {
-                    $app = $footer[0];
-                }
-                $app_template = $footer[1];
-                include_once $_SERVER['DOCUMENT_ROOT']."/application/app/$app/templates/$app_template.php";
+        $footer = explode('.', $config['header']);
+
+        if (count($footer) > 1) {
+            if (static::multiTenancy()) {
+                $app = static::getSubdomain();
             } else {
-                // no template
-                echo "no template";
+                $app = $footer[0];
             }
+            $app_template = $footer[1];
+
+            static::getTemplate($app, $app_template);
+            return true;
+        } else {
+            return false;
         }
     }
 
@@ -283,7 +324,8 @@ class Render
      *
      * @param $template - app.template
      * @return the template
-     * @see templateTags()
+     * @see getTemplateTags()
+     * @test
      **/
 
     public static function templateExtends($template)
@@ -291,6 +333,7 @@ class Render
         $template = explode('.', $template);
         $app = $template[0];
         $app_template = $template[1];
-        include $_SERVER['DOCUMENT_ROOT']."/application/app/$app/templates/$app_template.php";
+        return static::getTemplate($app, $app_template);
+        //include $_SERVER['DOCUMENT_ROOT']."/application/app/$app/templates/$app_template.php";
     }
 }
