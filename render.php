@@ -215,6 +215,12 @@ class Render
 
         $output = static::compileUse($output);
 
+        $output = static::compileExcerpt($output);
+        
+        $output = static::compileDate($output);
+        
+        $output = static::compileTitle($output);
+
         return $output = self::register(self::matcher('extends'), '$1<?php Mira\\Render::templateExtends($2) ?>', $output);
     }
 
@@ -252,6 +258,21 @@ class Render
         return $output = self::register("/(\s*)@(use)(\s.*)/", "<?php use $3; ?>", $output);
     }
 
+    public static function compileExcerpt($output)
+    {
+        return $output = self::register("/(\s*)@(excerpt)(\s.*)/", "<?= comet($3)->excerpt() ?>", $output);
+    }
+
+    public static function compileTitle($output)
+    {
+        return $output = self::register("/(\s*)@(title)(\s.*)/", "<?= comet($3)->title() ?>", $output);
+    }
+
+    public static function compileDate($output)
+    {
+        return $output = self::register("/(\s*)@(date)(\s.*)/", "<?= comet($3)->date() ?>", $output);
+    }
+
     /**
      * Returns a pattern that matches expressions such as @tag('')
      *
@@ -277,20 +298,7 @@ class Render
     {
         $header = explode('.', $config['header']);
 
-        if (count($header) > 1) {
-            if (self::multiTenancy()) {
-                $app = self::getSubdomain();
-            } else {
-                $app = $header[0];
-            }
-            $app_template = $header[1];
-
-            static::getTemplate($app, $app_template);
-
-            return true;
-        } else {
-            return false;
-        }
+        return static::templateEngine($header, []);
     }
 
     /**
@@ -302,21 +310,9 @@ class Render
     
     public function getFooter($config)
     {
-        $footer = explode('.', $config['header']);
+        $footer = explode('.', $config['footer']);
 
-        if (count($footer) > 1) {
-            if (static::multiTenancy()) {
-                $app = static::getSubdomain();
-            } else {
-                $app = $footer[0];
-            }
-            $app_template = $footer[1];
-
-            static::getTemplate($app, $app_template);
-            return true;
-        } else {
-            return false;
-        }
+        return static::templateEngine($footer, []);
     }
 
     /**
@@ -334,6 +330,5 @@ class Render
         $app = $template[0];
         $app_template = $template[1];
         return static::getTemplate($app, $app_template);
-        //include $_SERVER['DOCUMENT_ROOT']."/application/app/$app/templates/$app_template.php";
     }
 }
