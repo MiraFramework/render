@@ -221,6 +221,8 @@ class Render
         
         $output = static::compileTitle($output);
 
+        $output = static::compileDeclare($output);
+
         return $output = self::register(self::matcher('extends'), '$1<?php Mira\\Render::templateExtends($2) ?>', $output);
     }
 
@@ -234,7 +236,7 @@ class Render
     {
         $output = self::register(self::matcher("(if|elseif|foreach|for|while)"), '$1<?php $2$3: ?>', $output);
 
-        $output = self::register("/(\s*)@(else)(\s*)/", '$1<?php $2: ?>$3', $output);
+        $output = self::register("/(\s*)@(else)(\s*)/", '$1<?php $2:$i++; ?>$3', $output);
 
         return $output = self::register('/(\s*)@(endif|endforeach|endfor|endwhile)(\s*)/', '$1<?php $2; ?>$3', $output);
     }
@@ -271,6 +273,11 @@ class Render
     public static function compileDate($output)
     {
         return $output = self::register("/(\s*)@(date)(\s.*)/", "<?= comet($3)->date() ?>", $output);
+    }
+
+    public static function compileDeclare($output)
+    {
+        return $output = self::register("/(\s*)@(declare)(\s.*)/", "<?php $3; ?>", $output);
     }
 
     /**
