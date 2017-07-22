@@ -27,7 +27,7 @@ class Render
         $subdomain = self::getSubdomain();
         $host = explode('.', $_SERVER['HTTP_HOST']);
 
-        $multi_tenancy = Project::config('multi-tenancy');
+        $multi_tenancy = \Mira\Project\Project::config('multi-tenancy');
         if (count($host) >= 3 && $subdomain != 'www') {
             return true;
         }
