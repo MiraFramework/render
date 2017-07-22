@@ -11,7 +11,7 @@
  * @author Mira Framework
  **/
 
-namespace Mira;
+namespace Mira\Render;
 
 class Render
 {
