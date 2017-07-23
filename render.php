@@ -223,7 +223,7 @@ class Render
 
         $output = static::compileDeclare($output);
 
-        return $output = self::register(self::matcher('extends'), '$1<?php Mira\\Render::templateExtends($2) ?>', $output);
+        return $output = self::register(self::matcher('extends'), '$1<?php Mira\\Render\Render::templateExtends($2) ?>', $output);
     }
 
     public static function compileMustache($output)
