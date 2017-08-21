@@ -101,7 +101,7 @@ class Render
 
         self::multiTenancy();
         
-        self::getHeader($config);
+        self::getHeader($config, $variables);
 
         // Template Engine Logic
         $template = explode(".", $template);
@@ -111,7 +111,7 @@ class Render
             return false;
         }
 
-        self::getFooter($config);
+        self::getFooter($config, $variables);
         return true;
     }
 
@@ -301,11 +301,11 @@ class Render
      * @test
      **/
     
-    public function getHeader($config)
+    public function getHeader($config, $variables)
     {
         $header = explode('.', $config['header']);
 
-        return static::templateEngine($header, []);
+        return static::templateEngine($header, $variables);
     }
 
     /**
@@ -315,11 +315,11 @@ class Render
      * @test
      **/
     
-    public function getFooter($config)
+    public function getFooter($config, $variables)
     {
         $footer = explode('.', $config['footer']);
 
-        return static::templateEngine($footer, []);
+        return static::templateEngine($footer, $variables);
     }
 
     /**
