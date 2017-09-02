@@ -15,6 +15,8 @@ namespace Mira\Render;
 
 class Render
 {
+
+    public static $section_variable;
     /**
      * Check if multi-tenancy => true in the project config file
      *
@@ -100,9 +102,8 @@ class Render
         $config = self::getConfig($template);
 
         self::multiTenancy();
-        
-        self::getHeader($config, $variables);
 
+        ob_clean();
         // Template Engine Logic
         $template = explode(".", $template);
         if (count($template) > 1) {
@@ -111,8 +112,28 @@ class Render
             return false;
         }
 
+        $template = ob_get_contents();
+        
+        ob_clean();
+
+        self::getHeader($config, $variables);
+
+        $head = ob_get_contents();
+
+        ob_clean();
+        
         self::getFooter($config, $variables);
+
+        $footer = ob_get_contents();
+
+        ob_end_clean();
+
+        echo $head;
+        echo $template;
+        echo $footer;
         return true;
+
+        end_ob_clean();
     }
 
     /**
@@ -223,6 +244,11 @@ class Render
 
         $output = static::compileDeclare($output);
 
+        $output = static::compileYield($output);
+
+        $output = static::compileSection($output);
+
+
         return $output = self::register(self::matcher('extends'), '$1<?php Mira\\Render\Render::templateExtends($2) ?>', $output);
     }
 
@@ -279,6 +305,20 @@ class Render
     {
         return $output = self::register("/(\s*)@(declare)(\s.*)/", "<?php $3; ?>", $output);
     }
+    
+    public static function compileYield($output)
+    {
+        return $output = self::register("/(\s*)@yield(\s*\(.*\))/", "$1<?php static::yield($2); ?>", $output);
+    }
+
+    public static function compileSection($output)
+    {
+        $output = self::register('/(\s*)@section(\s*\(.*\))/', "$1<?php static::section($2); ob_start();  ?>", $output);
+
+        return $output = self::register('/(\s*)@(endsection)(\s*)/', '<?php $output = ob_get_contents(); ob_end_clean(); static::globals($output); ?>', $output);
+    }
+
+    
 
     /**
      * Returns a pattern that matches expressions such as @tag('')
@@ -337,5 +377,22 @@ class Render
         $app = $template[0];
         $app_template = $template[1];
         return static::getTemplate($app, $app_template);
+    }
+
+    public function globals($content)
+    {
+        $GLOBALS['mira'][self::$section_variable] = trim($content);
+    }
+
+    public static function section($variable)
+    {
+        self::$section_variable = $variable;
+    }
+
+    public static function yield($name)
+    {
+        if (isset($GLOBALS['mira'][$name])) {
+            echo $GLOBALS['mira'][$name];
+        }
     }
 }
