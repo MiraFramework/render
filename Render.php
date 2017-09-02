@@ -17,6 +17,7 @@ class Render
 {
 
     public static $section_variable;
+    public static $template_variables;
     /**
      * Check if multi-tenancy => true in the project config file
      *
@@ -99,6 +100,7 @@ class Render
     public static function view($template, $variables = [])
     {
         extract($variables);
+        self::$template_variables = $variables;
         $config = self::getConfig($template);
 
         self::multiTenancy();
@@ -376,9 +378,7 @@ class Render
     public static function templateExtends($template)
     {
         $template = explode('.', $template);
-        $app = $template[0];
-        $app_template = $template[1];
-        return static::getTemplate($app, $app_template);
+        return static::templateEngine($template, self::$template_variables);
     }
 
     public function globals($content)
