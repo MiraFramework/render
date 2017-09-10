@@ -133,7 +133,6 @@ class Render
         echo $head;
         echo $template;
         echo $footer;
-        ob_end_clean();
 
         return true;
 
